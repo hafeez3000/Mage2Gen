@@ -33,7 +33,7 @@ class ConsoleSnippet(Snippet):
 		bin/magento mage2gen_module:backup
 	"""
 
-	def add(self,action_name,short_description):
+	def add(self,action_name,short_description, extra_params=None):
 
 		console = Phpclass(
 			'Console\\Command\\'+action_name, 
@@ -45,7 +45,10 @@ class ConsoleSnippet(Snippet):
 			'Symfony\Component\Console\Input\InputInterface',
 			'Symfony\Component\Console\Output\OutputInterface'
 			],
-			attributes = ['const NAME_ARGUMENT = "name";','const NAME_OPTION = "option";']
+			attributes = [
+				'const NAME_ARGUMENT = "name";',
+				'const NAME_OPTION = "option";'
+			]
 		)
 
 		console.add_method(
@@ -53,7 +56,12 @@ class ConsoleSnippet(Snippet):
 			'execute',
 			access='protected',
 			params=['InputInterface $input','OutputInterface $output'],
-			body='$name = $input->getArgument(self::NAME_ARGUMENT); $option = $input->getOption(self::NAME_OPTION);\n$output->writeln("Hello " . $name);'
+			body="""
+			$name = $input->getArgument(self::NAME_ARGUMENT);
+			$option = $input->getOption(self::NAME_OPTION);
+			$output->writeln("Hello " . $name);
+			""",
+			docstring=['{@inheritdoc}']
 			)
 		)
 
@@ -61,7 +69,20 @@ class ConsoleSnippet(Snippet):
 			Phpmethod(
 				'configure',
 				access='protected',
-				body='$this->setName("'+self.module_name.lower()+':'+action_name.lower()+'");\n$this->setDescription("'+short_description+'");\n$this->setDefinition([new InputArgument(self::NAME_ARGUMENT,InputArgument::OPTIONAL,"Name"),new InputOption(self::NAME_OPTION,"-a",InputOption::VALUE_NONE,"Option functionality")]);\nparent::configure();'
+				body=""" 
+				$this->setName("{module_name}:{action_name}");
+				$this->setDescription("{short_description}");
+				$this->setDefinition([
+				    new InputArgument(self::NAME_ARGUMENT, InputArgument::OPTIONAL, "Name"),
+				    new InputOption(self::NAME_OPTION, "-a", InputOption::VALUE_NONE, "Option functionality")
+				]);
+				parent::configure();
+				""".format(
+					module_name=self.module_name.lower(),
+					action_name=action_name.lower(),
+					short_description=short_description
+				),
+				docstring=['{@inheritdoc}']
 			)
 		)
 
@@ -96,13 +117,13 @@ class ConsoleSnippet(Snippet):
 			SnippetParam(
 				name='action_name', 
 				required=True, 
-				description='Console action name. Example: Backup, Import',
+				description='Example: Backup, Import',
 				regex_validator= r'^[a-zA-Z]{1}\w+$',
 				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
 			SnippetParam(
 				name='short_description', 
 				required=True, 
-				description='Console action description. Example: Backups magento enviroment, Starts product import'),
+				description='Example: Backups magento enviroment, Starts product import'),
 		]
 
 

@@ -32,21 +32,25 @@ class Phpclass:
 
 	template_file = os.path.join(TEMPLATE_DIR,'class.tmpl')
 
-	def __init__(self, class_namespace, extends=None, implements=None, attributes=None, dependencies=None):
+	def __init__(self, class_namespace, extends=None, implements=None, attributes=None, dependencies=None, abstract=False):
 		self.class_namespace = self.upper_class_namespace(class_namespace)
 		self.methods = []
 		self.extends = extends
 		self.implements = implements if implements else []
 		self.attributes = attributes if attributes else []
 		self.dependencies = dependencies if dependencies else []
+		self.abstract = abstract
+		self.license = None
 
 	def __eq__(self, other):
 		return self.class_namespace == other.class_namespace
 
 	def __add__(self, other):
 		self.attributes = set(list(self.attributes) + list(other.attributes))
-		for method in other.methods:
-			self.add_method(method)
+		self.implements = set(list(self.implements) + list(other.implements))
+		self.dependencies = set(list(self.dependencies) + list(other.dependencies))
+		for method in other.methods :
+			self.add_method(method)		
 		return self
 
 	@property
@@ -61,7 +65,10 @@ class Phpclass:
 		return '\\'.join(upperfirst(n) for n in class_namespace.strip('\\').split('\\'))
 	
 	def add_method(self, method):
-		if method not in self.methods:
+		if method in self.methods:
+			method_index = self.methods.index(method)
+			self.methods[method_index] = self.methods[method_index] + method
+		else :
 			self.methods.append(method)
 
 	def context_data(self):
@@ -69,22 +76,25 @@ class Phpclass:
 		if methods:
 			methods = '\n' + methods
 
-		attributes = '\n\t'.join(self.attributes)
-		if attributes:
-			attributes = '\n\t' + attributes
+		if self.attributes:
+			attributes = '\n\t' + '\n\t'.join(self.attributes) + '\n'
+		else:
+			attributes = ''
 
 		dependencies = ';\n'.join("use %s" %(dependency) for dependency in self.dependencies)
 		if dependencies:
-			dependencies = '\n' + dependencies + ';'	
+			dependencies = '\n' + dependencies + ';\n'	
 
 		return {
+			'license': self.license.get_php_docstring() if self.license else '',
 			'namespace': self.namespace,
 			'class_name': self.class_name,
 			'methods': methods,
 			'extends': ' extends {}'.format(self.extends) if self.extends else '',
 			'implements': ' implements {}'.format(', '.join(self.implements)) if self.implements else '',
 			'attributes': attributes,
-			'dependencies': dependencies
+			'dependencies': dependencies,
+			'abstract': 'abstract ' if self.abstract else '',
 		}
 
 	def generate(self):
@@ -93,7 +103,7 @@ class Phpclass:
 
 		return template.format(
 			**self.context_data()
-		)
+		).replace('\t', '    ') # Make generated code PSR2 compliant
 
 	def save(self, root_location):
 		path = os.path.join(root_location, self.class_namespace.replace('\\', '/') + '.php')
@@ -111,14 +121,30 @@ class Phpmethod:
 	PRIVATE = 'private'
 
 	def __init__(self, name, **kwargs):
+
 		self.name = name
 		self.access = kwargs.get('access', self.PUBLIC)
 		self.params = kwargs.get('params', [])
-		self.body = kwargs.get('body', '')
+		self.docstring = kwargs.get('docstring',[])
+		self.body = [kwargs.get('body', '')]
+		self.end_body = [kwargs.get('end_body', '')]
+		self.body_return = kwargs.get('body_return', '')
 		self.template_file = os.path.join(TEMPLATE_DIR, 'method.tmpl')
-
 	def __eq__(self, other):
 		return self.name == other.name
+
+	def __add__(self, other):
+		for code in other.body:
+			if code not in self.body:
+				self.body.append(code)
+		for code in other.end_body:
+			if code not in self.end_body:
+				self.end_body.insert(0, code)
+
+		for param in other.params:
+			if param not in self.params:
+				self.params.append(param)
+		return self
 
 	def __hash__(self):
 		return hash(self.name)
@@ -130,8 +156,31 @@ class Phpmethod:
 		else:
 			return ', '.join(self.params)
 
+	def docstring_code(self):
+		if not self.docstring:
+			return '';
+
+		docstring = '/**'
+		docstring +=  '\n\t *' + '\n\t *'.join(" {}".format(line.strip()) if len(line.strip()) else '' for line in self.docstring)
+		docstring += '\n\t */\n\t'
+		return docstring			
+
+
+	def add_body_code(self,code):
+		if code not in self.body:
+			self.append(code)
+
 	def body_code(self):
-		return '\n\t\t'.join(s.strip('\t') for s in self.body.splitlines())
+		body_string = ''
+		for body_code in self.body:
+			if body_code:
+				body_string += '\n\t\t'.join(s.strip('\t') for s in body_code.splitlines()) + '\n\n\t\t'
+		for body_code in self.end_body:
+			if body_code:
+				body_string += '\n\t\t'.join(s.strip('\t') for s in body_code.splitlines()) + '\n\n\t\t'
+		if self.body_return:
+			body_string += self.body_return
+		return body_string.strip()
 
 	def generate(self):
 		with open(self.template_file, 'rb') as tmpl:
@@ -140,9 +189,11 @@ class Phpmethod:
 		return template.format(
 			method=self.name,
 			access=self.access,
+			docstring=self.docstring_code(),
 			params=self.params_code(),
-			body=self.body_code()
-		)
+			body=self.body_code(),
+			brace_break= ' ' if len(self.params_code()) > 40 else '\n\t'
+		).replace('\t', '    ') # Make generated code PSR2 compliant
 
 ###############################################################################
 # XML
@@ -225,9 +276,17 @@ class StaticFile:
 		self.file_name = file_name
 		self.template_file = os.path.join(TEMPLATE_DIR, template_file)
 		self._context_data = context_data if context_data else {}
-		self._context_data['body'] = body if body else ''
+		self._context_data['body'] = [body] if body else []
+
+	def __add__(self, other):
+		for code in other._context_data['body']:
+			if code not in self._context_data['body']:
+				self._context_data['body'].append(code)	
+		return self	
 
 	def context_data(self):
+		data = self._context_data
+		data['body'] = "\n\n".join(self._context_data['body'])
 		return self._context_data
 
 	def generate(self):
@@ -253,10 +312,11 @@ class StaticFile:
 ###############################################################################
 class Module:
 
-	def __init__(self, package, name, description=''):
+	def __init__(self, package, name, description='', license=None):
 		self.package = upperfirst(package)
 		self.name = upperfirst(name)
 		self.description = description
+		self.license = license
 		self._xmls = {}
 		self._classes = {}
 		self._static_files = {}
@@ -269,12 +329,13 @@ class Module:
 
 		self.add_static_file('.', StaticFile('registration.php', template_file='registration.tmpl', context_data={'module_name':self.module_name}))
 		self._composer = OrderedDict()
-		self._composer['name'] = '{}/{}'.format(self.package.lower(), self.name.lower())
+		self._composer['name'] = '{}/module-{}'.format(self.package.lower(), self.name.lower())
 		self._composer['description'] = self.description
+		self._composer['license'] = 'proprietary'
 		self._composer['authors'] = [
 				{
 					'name': 'Mage2Gen',
-					'email': 'mail@mage2gen'
+					'email': 'info@mage2gen.com'
 				}
 			]
 		self._composer['minimum-stability'] = 'dev'
@@ -308,6 +369,10 @@ class Module:
 		except Exception:
 			pass
 
+		if self.license:
+			self._composer['license'] = self.license.identifier
+			self.add_static_file('', StaticFile('LICENSE.txt', body=self.license.get_text()))
+
 		# Add composer as static file
 		self.add_static_file('', StaticFile('composer.json', body=json.dumps(self._composer, indent=4)))
 
@@ -332,6 +397,9 @@ class Module:
 			current_class += phpclass
 		else:
 			current_class = phpclass
+
+		current_class.license = self.license
+		
 		self._classes[current_class.class_namespace] = current_class
 
 	def add_xml(self, xml_file, node):
@@ -345,5 +413,11 @@ class Module:
 
 	def add_static_file(self, path, staticfile):
 		full_name = os.path.join(path, staticfile.file_name)
-		if full_name not in self._static_files:
-			self._static_files[full_name] = staticfile
+
+		current_staticfile = self._static_files.get(full_name)
+		if current_staticfile:
+			current_staticfile += staticfile
+		else:
+			current_staticfile = staticfile
+
+		self._static_files[full_name] = current_staticfile	

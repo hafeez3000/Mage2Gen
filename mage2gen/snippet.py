@@ -22,9 +22,19 @@ from collections import namedtuple
 from mage2gen.utils import upperfirst
 
 class SnippetParam:
+	"""
+	SnippetParam defines how a param can be rendered and validated by external program.
+
+	depend is a dict where the key is the name of an other param and the value is a regex, example:
+	{
+		'some_param': r'value|value2'
+	}
+	"""
+	
 	def __init__(
 		self, name, description='', required=False, default=None, 
-		choises=None, yes_no=False, regex_validator='', error_message=''
+		choises=None, yes_no=False, regex_validator='', error_message='',
+		depend=None, label=None, multiple_choices=False, repeat=False
 	):
 		self.name = name
 		self.description = description
@@ -34,6 +44,10 @@ class SnippetParam:
 		self.yes_no = yes_no
 		self.regex_validator = regex_validator
 		self.error_message = error_message
+		self.depend = depend
+		self.label = label if label else upperfirst(name.replace('_', ' '))
+		self.multiple_choices = multiple_choices
+		self.repeat = repeat
 
 	def name_label(self):
 		return upperfirst(self.name.replace('_', ' '))
@@ -57,7 +71,7 @@ class MetaClass(type):
 		return newclass
 
 class Snippet(metaclass=MetaClass):
-	snippet_name = None
+	snippet_label = None
 	description = ''
 
 	def __init__(self, module):
@@ -68,16 +82,20 @@ class Snippet(metaclass=MetaClass):
 		return type(cls).snippets
 
 	@classmethod
+	def label(cls):
+		if cls.snippet_label:
+			return cls.snippet_label
+		return cls.name()
+
+	@classmethod
 	def name(cls):
-		if cls.snippet_name:
-			return sel.snippet_name
 		return cls.__name__.lower().replace('snippet', '').capitalize()
 	
 	@classmethod
 	def params(cls):
 		params = []
 		for arg_name, arg in inspect.signature(cls.add).parameters.items():
-			if arg_name == 'self':
+			if arg_name == 'self' or arg_name == 'extra_params':
 				continue
 			default = arg.default if arg.default != arg.empty else None
 			
@@ -88,6 +106,15 @@ class Snippet(metaclass=MetaClass):
 				yes_no=isinstance(default, bool),
 				))
 		return params
+
+	@classmethod
+	def extra_params(cls):
+		"""
+		Gives a list of optional params, these params must be given to the add functon in a dict for the keyword extra_params.
+
+		To seperate params with a title, add a string with name in the list between the items. 
+		"""
+		return []
 
 
 	@property

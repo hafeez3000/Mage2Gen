@@ -52,7 +52,7 @@ class ObserverSnippet(Snippet):
 		(SCOPE_ADMINHTML, 'Backend'),
 	]
 	
-	def add(self, event, scope=SCOPE_ALL):
+	def add(self, event, scope=SCOPE_ALL, extra_params=None):
 		split_event = event.split('_')
 
 		observer = Phpclass(
@@ -60,7 +60,14 @@ class ObserverSnippet(Snippet):
 			implements=['\Magento\Framework\Event\ObserverInterface'])
 		observer.add_method(Phpmethod(
 			'execute',
-			params=['\Magento\Framework\Event\Observer $observer']
+			params=['\\Magento\\Framework\\Event\\Observer $observer'],
+			body="//Your observer code",
+			docstring=[
+				'Execute observer',
+				'',
+				'@param \\Magento\\Framework\\Event\\Observer $observer',
+				'@return void'
+			]
 		))
 
 		self.add_class(observer)	
@@ -91,7 +98,7 @@ class ObserverSnippet(Snippet):
 			SnippetParam(
 				name='event', 
 				required=True, 
-				description='Magento event name, example: catalog_product_save_after',
+				description='Example: catalog_product_save_after',
 				regex_validator= r'^[a-zA-Z]{1}\w+$',
 				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
 			SnippetParam(name='scope', choises=cls.SCOPE_CHOISES, default=cls.SCOPE_ALL)

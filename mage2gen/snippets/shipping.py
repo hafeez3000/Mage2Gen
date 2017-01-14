@@ -59,7 +59,7 @@ class ShippingSnippet(Snippet):
 
 	"""
 
-	def add(self,method_name):
+	def add(self,method_name, extra_params=None):
 
 		system_file = 'etc/adminhtml/system.xml'
 		shipping_code = method_name.lower().replace(' ', '_')
@@ -137,7 +137,7 @@ class ShippingSnippet(Snippet):
 			SnippetParam(
 				name='method_name', 
 				required=True, 
-				description='Shipping Method name. Example: Freeshipping, Per product shipping',
+				description='Example: Freeshipping',
 				regex_validator= r'^[a-zA-Z]{1}\w+$',
 				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
 		]

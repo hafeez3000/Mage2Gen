@@ -1,5 +1,23 @@
-import os, locale
+
+# A Magento 2 module generator library
+# Copyright (C) 2016 Derrick Heesbeen
+#
+# This file is part of Mage2Gen.
+#
+# Mage2Gen is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 from mage2gen import Module, Phpclass, Phpmethod, Xmlnode, StaticFile, Snippet, SnippetParam
+from mage2gen.utils import upperfirst
 
 class CronjobSnippet(Snippet):
 
@@ -27,43 +45,43 @@ class CronjobSnippet(Snippet):
 
     """
 
-	def add(self, cronjob_name, schedule='*/5 * * * *'):
+	def add(self, cronjob_class, schedule='*/5 * * * *', extra_params=None):
 
-		crontab_file = 'etc/crontab.xml'
+		crontab_class = Phpclass('Cron\\{}'.format(upperfirst(cronjob_class)), attributes=[
+			'protected $logger;'
+		])
 
-		instance = "Magento\Sales\Cron\CleanExpiredQuotes"
-
-		class_name_parts = []
-		for cronjob_name_part in cronjob_name.split(' '):
-			class_name_parts.append(cronjob_name_part.capitalize())
-
-		class_name = ''.join(class_name_parts)
-
-		method= "execute"
-
-		crontab_class = Phpclass('Cron\\'+class_name)
-		crontab_class.attributes.append('protected $logger;')
 		crontab_class.add_method(Phpmethod(
             '__construct',
             params=[
                 '\Psr\Log\LoggerInterface $logger',
             ],
-            body="$this->logger = $logger;"
+            body="$this->logger = $logger;",
+            docstring=[
+            	'Constructor',
+            	'',
+            	'@param \\Psr\\Log\\LoggerInterface $logger',
+            ]
         ))
-		crontab_class.add_method(Phpmethod('execute',body='$this->logger->addInfo("Cronjob '+cronjob_name+' is executed.");'))
+		crontab_class.add_method(Phpmethod('execute',
+			body='$this->logger->addInfo("Cronjob '+cronjob_class+' is executed.");',
+			docstring=[
+            	'Execute the cron',
+            	'',
+            	'@return void',
+            ]
+		))
 	
 		self.add_class(crontab_class)
-
-		cronjob_name = (self.module_name + '_' + cronjob_name).lower().replace(' ','_')
 
 		crontab_xml = Xmlnode('config',attributes={'xmlns:xsi':'http://www.w3.org/2001/XMLSchema-instance','xsi:noNamespaceSchemaLocation':"urn:magento:module:Magento_Cron:etc/crontab.xsd"},nodes=[
 			Xmlnode('group',attributes={'id':'default'},nodes=[
 				Xmlnode(
 					'job',
 					attributes={
-						'name':cronjob_name,
+						'name': "{}_{}".format(self.module_name, cronjob_class).lower(),
 						'instance': crontab_class.class_namespace,
-						'method': method,
+						'method': "execute",
 					}, 
 					nodes=[
 						Xmlnode('schedule',node_text=schedule)
@@ -72,17 +90,17 @@ class CronjobSnippet(Snippet):
 			])
 		]);
 
-		self.add_xml(crontab_file, crontab_xml)
+		self.add_xml('etc/crontab.xml', crontab_xml)
 
 	@classmethod
 	def params(cls):
 		return [
 			SnippetParam(
-                name='cronjob_name', 
+                name='cronjob_class', 
                 required=True, 
-                description='Cronjob Name',
-                regex_validator= r'^[a-zA-Z]{1}\w+$',
-                error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
+                description='Cronjob class',
+                regex_validator= r'^[a-zA-Z]{1}[a-zA-Z]+$',
+                error_message='Only alphanumeric are allowed, and need to start with a alphabetic character.'),
 			SnippetParam(
                 name='schedule', 
                 required=True, 

@@ -59,7 +59,7 @@ class PluginSnippet(Snippet):
 		(TYPE_AROUND, 'Around'),
 	]
 
-	def add(self, classname, methodname, plugintype=TYPE_AFTER, sortorder=10, disabled=False):
+	def add(self, classname, methodname, plugintype=TYPE_AFTER, sortorder=10, disabled=False, extra_params=None):
 		# Add class
 		plugin = Phpclass('Plugin\\{}'.format(classname))
 		
@@ -71,6 +71,7 @@ class PluginSnippet(Snippet):
 
 		plugin.add_method(Phpmethod(
 			plugintype + methodname[0].capitalize() + methodname[1:],
+			body="//Your plugin code",
 			params=[
 				'\\' + classname + ' $subject',
 				variable
@@ -98,10 +99,11 @@ class PluginSnippet(Snippet):
 	def params(cls):
 		return [
 			SnippetParam(name='classname', required=True,
-				description='This must be the full class path, example: Magento\Catalog\Model\Product',
+				description='Example: Magento\Catalog\Model\Product',
 				regex_validator=r'^[\w\\]+$',
 				error_message='Only alphanumeric, underscore and backslash characters are allowed'),
 			SnippetParam(name='methodname', required=True,
+				description='Example: getPrice',
 				regex_validator= r'^\w+$',
 				error_message='Only alphanumeric and underscore characters are allowed'),
 			SnippetParam(name='plugintype', choises=cls.SCOPE_CHOISES, default=cls.TYPE_AFTER),

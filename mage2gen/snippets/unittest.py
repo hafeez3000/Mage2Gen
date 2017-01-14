@@ -20,6 +20,7 @@ from mage2gen import Module, Phpclass, Phpmethod, Xmlnode, StaticFile, Snippet, 
 from mage2gen.utils import upperfirst
 
 class UnitTestSnippet(Snippet):
+	snippet_label = 'Unit Test'
 	description = """
 	Unit tests are runned with *magento dev:tests:run <test>* and is used to test your code in development.
 
@@ -27,7 +28,7 @@ class UnitTestSnippet(Snippet):
 	- **Test name:** The name of a test
 	"""
 
-	def add(self, test_suite, test_name):
+	def add(self, test_suite, test_name, extra_params=None):
 		class_name = "\\Test\\Unit\\{}Test".format(test_suite)
 
 		unittest_class = Phpclass(class_name,extends='\\PHPUnit_Framework_TestCase')
@@ -36,16 +37,18 @@ class UnitTestSnippet(Snippet):
 		unittest_class.add_method(
 			Phpmethod(
 				'setUpBeforeClass',
-				access='static',
-				body='# Is called once before running all test in class'
+				access='public static',
+				body="//setup",
+				docstring=['Is called once before running all test in class']
 			)
 		)
 
 		unittest_class.add_method(
 			Phpmethod(
 				'tearDownAfterClass',
-				access='static',
-				body='# Is called once after running all test in class'
+				access='public static',
+				body="//teardown",
+				docstring=['Is called once after running all test in class']
 			)
 		)
 
@@ -55,7 +58,8 @@ class UnitTestSnippet(Snippet):
 			Phpmethod(
 				'setUp',
 				access='protected',
-				body='# Is called before running a test'
+				body="//setup",
+				docstring=['Is called before running a test']
 			)
 		)
 
@@ -63,7 +67,8 @@ class UnitTestSnippet(Snippet):
 			Phpmethod(
 				'tearDown',
 				access='protected',
-				body='# Is called after running a test'
+				body="//teardown",
+				docstring=['Is called after running a test']
 			)
 		)
 
@@ -72,7 +77,8 @@ class UnitTestSnippet(Snippet):
 			Phpmethod(
 				'test{}'.format(upperfirst(test_name)),
 				access='public',
-				body="# The test itself, every test function must start with 'test'\n$this->assertTrue(false);"
+				body='$this->assertTrue(false);',
+				docstring=["The test itself, every test function must start with 'test'"]
 			)
 		)
 
@@ -82,12 +88,15 @@ class UnitTestSnippet(Snippet):
 	def params(cls):
 		return [
 			SnippetParam(
-				name='test_suite', 
+				name='test_suite',
+				description='Example: BlogPost',
 				required=True, 
 				regex_validator= r'^[a-zA-Z]{1}\w+$',
-				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
+				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.',
+				repeat=True),
 			SnippetParam(
-				name='test_name', 
+				name='test_name',
+				description='Example: create',
 				required=True, 
 				regex_validator= r'^[a-zA-Z]{1}\w+$',
 				error_message='Only alphanumeric and underscore characters are allowed, and need to start with a alphabetic character.'),
